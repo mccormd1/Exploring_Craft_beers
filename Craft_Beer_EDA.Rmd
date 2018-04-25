@@ -7,21 +7,194 @@ output: html_document
 
 
 ## Data Overview
-Here you introduce the data sources, the intent of the EDA, etc. The data source is https://www.kaggle.com/nickhould/craft-cans/data. data is in two tables, beers and breweries that contains information about different craft beers and craft breweries, respectively.
+Here you introduce the data sources, the intent of the EDA, etc. The data source is https://www.kaggle.com/nickhould/craft-cans/data. data is in two tables, beers and breweries that contains information about different craft beers and craft breweries, respectively. Check codebook.xlsx for more info about the columns. 
 
 
 # Load Data
 
 ```{r message=FALSE, warning=FALSE, load_data }
-#library(tidyverse)
-#edadata<-read.csv("datasource.csv")
+library(tidyverse)
+beers<-read.csv("craft-cans/beers.csv")
+breweries<-read.csv("craft-cans/breweries.csv")
 ```
 
 # Data Cleaning
 Here you explore data structure and clean data if necessary. Note data formats, types and meaning
 
-```{r data_cleaning}
-#summary(edadata)
+```{r summary_beers}
+summary(beers)
+
+```
+
+As expected, Most American Craft Beers are IPAs, and often are an "American Style" Beer. There are interesting duplicates in the name category, so I'll need to explore that to make sure there is some reason behind the duplication.
+
+
+```{r summary_breweries}
+summary(breweries)
+
+```
+
+Portland looks to be the top city of craft breweries, but Colorado is the top state. I'm suspicious of Portland's top spot only because I know there are at least two major cultural cities with the name (ME and OR) - although Portland, OR certainly has a craft brew reputation. There are suspicious duplications in brewery names, so I'll have to explore that a bit more before visualization as well. 
+
+Another note is that while beers has an unnecessary X column that can be dropped,
+breweries NEEDs the X because it is the primary key. However it should be renamed.
+
+The brewery table needs to strip the whitespace from the state column as well.
+
+```{r message=FALSE, warning=FALSE, drop_X}
+beers<-select(beers,-X)
+breweries<-rename(breweries,brewery_id=X)
+summary(breweries)
+```
+
+```{r strip_state_whitespace}
+
+levels(breweries$state) <- trimws(levels(breweries$state))
+summary(breweries)
+
+```
+
+
+```{r Analyze_nonstophefhop_duplicates}
+beers%>%
+  filter(name=='Nonstop Hef Hop')
+```
+
+There are straight up duplicates. There is no distinguishing difference between the two. Duplicates can be removed.
+
+```{r Analyze_dale_duplicates}
+beers%>%
+  filter(name=="Dale's Pale Ale")
+```
+
+This is interesting. There are multiple sizes AND potentially multiple locations for breweries. There are still duplicates, though.
+
+```{r Analyze_beer_duplicates}
+beers%>%
+  group_by(name)%>%
+  filter(n()>1)%>%
+  arrange(name)
+```
+
+Complete duplicates should be collapsed, but duplicates on only name need to be handled differently.
+
+
+```{r check_distinct_beer}
+  summary(distinct(beers,abv,ibu,name,style,brewery_id,ounces,.keep_all=TRUE))
+```
+
+This does well! Oktoberfest is a generic name, and Dale's has 4 varietals (potentially).
+
+```{r remove_duplicates_beer}
+beers<-distinct(beers,abv,ibu,name,style,brewery_id,ounces,.keep_all=TRUE)
+```
+
+We need to do the same with breweries.
+
+```{r Analyze_brewery_duplicates}
+breweries%>%
+  group_by(name)%>%
+  filter(n()>1)%>%
+  arrange(name)
+```
+
+
+Blackrocks is super suspicious, as the city is THE SAME, but the state is different.
+Checking online, Blackrocks is ONLY in MI.
+
+Blue Mountain is a legitimate split, BM Brewery splits their normal and specialty aged
+beers between the two locations
+
+Lucette is clearly a misspelling. Hilariously, BOTH are misspellings. Lucette is
+in Menomonie, WI
+
+Oskar Blues, like BM, actually has two locations (in reality they have
+several locations and breweries). However I doubt there is a type division
+
+Otter Creek used to be in Waterbury before expanding and moving to Middlebury
+
+Sly fox has two actual locations
+
+Summit has a spelling discrepancy. We want to keep "St. Paul".
+
+In summary, Only three changes need to be made: to Blackrocks, Lucette, and Summit.
+Importantly, we need to preserve the joinability of the tables by altering the
+brewery_id on affected beers.
+
+
+```{r Analyze_Blackrocks_beers}
+beers%>%
+  filter(brewery_id %in% c(12,95))
+```
+
+```{r Clean_Blackrocks_beers}
+beers%>%
+  mutate(brewery_id=replace(brewery_id,brewery_id==95,12))->beers
+## Test
+beers%>%
+  filter(brewery_id %in% c(12,95))
+```
+
+```{r Analyze_lucette_beers}
+beers%>%
+  filter(brewery_id %in% c(377,456))
+```
+
+```{r Clean_lucette_beers}
+beers%>%
+  mutate(brewery_id=replace(brewery_id,brewery_id==377,456))->beers
+## Test
+beers%>%
+  filter(brewery_id %in% c(377,456))
+```
+
+```{r Analyze_summit_beers}
+beers%>%
+  filter(brewery_id %in% c(58,138))
+```
+
+```{r Clean_summit_beers}
+beers%>%
+  mutate(brewery_id=replace(brewery_id,brewery_id==138,58))->beers
+## Test
+beers%>%
+  filter(brewery_id %in% c(58,138))
+```
+
+So we will want to remove the breweries with the following IDs: 95, 377, and 138.
+Additionally, We need to modify Lucette to have to correct spelling.
+Each has only one outlier
+```{r remove_duplicate_breweries}
+breweries%>%
+  filter(!brewery_id %in% c(95,377,138))->breweries
+
+## Test
+breweries%>%
+  group_by(name)%>%
+  filter(n()>1)%>%
+  arrange(name)
+```
+
+Now just to fix Menomonie
+
+```{r check_if_other_menomonie}
+breweries%>%
+  filter(state=='WI')
+
+```
+
+```{r check_if_other_menomonie}
+breweries%>%
+  filter(city=="Menominie")
+
+```
+
+```{r Clean_lucette_beers}
+breweries%>%
+  mutate(city = recode(city, "Menominie" = "Menomonie"))->breweries
+## Test
+breweries%>%
+  filter(brewery_id==456)
 ```
 
 # Visualizations
