@@ -14,6 +14,8 @@ Here you introduce the data sources, the intent of the EDA, etc. The data source
 
 ```{r message=FALSE, warning=FALSE, load_data }
 library(tidyverse)
+library(gridExtra)
+
 beers<-read.csv("craft-cans/beers.csv")
 breweries<-read.csv("craft-cans/breweries.csv")
 ```
@@ -42,10 +44,16 @@ breweries NEEDs the X because it is the primary key. However it should be rename
 The brewery table needs to strip the whitespace from the state column as well.
 
 ```{r message=FALSE, warning=FALSE, drop_X}
-beers<-select(beers,-X)
-breweries<-rename(breweries,brewery_id=X)
+beers<-dplyr::select(beers,-X)
+breweries<-dplyr::rename(breweries,brewery_id=X)
 summary(breweries)
 ```
+```{r make_brewery_id_Factor}
+beers$brewery_id<-as.factor(beers$brewery_id)
+breweries$brewery_id<-as.factor(breweries$brewery_id)
+
+```
+
 
 ```{r strip_state_whitespace}
 
@@ -164,6 +172,7 @@ beers%>%
 So we will want to remove the breweries with the following IDs: 95, 377, and 138.
 Additionally, We need to modify Lucette to have to correct spelling.
 Each has only one outlier
+
 ```{r remove_duplicate_breweries}
 breweries%>%
   filter(!brewery_id %in% c(95,377,138))->breweries
@@ -177,7 +186,7 @@ breweries%>%
 
 Now just to fix Menomonie
 
-```{r check_if_other_menomonie}
+```{r check_WI}
 breweries%>%
   filter(state=='WI')
 
@@ -189,7 +198,7 @@ breweries%>%
 
 ```
 
-```{r Clean_lucette_beers}
+```{r clean_menomonie}
 breweries%>%
   mutate(city = recode(city, "Menominie" = "Menomonie"))->breweries
 ## Test
@@ -197,48 +206,198 @@ breweries%>%
   filter(brewery_id==456)
 ```
 
+Lets take one more look at the data summaries before we break into visualization
+
+```{r "clean_data_summaries beers"}
+summary(beers)
+str(beers)
+```
+
+```{r "clean_data_summaries breweries"}
+summary(breweries)
+str(breweries)
+```
+
 # Visualizations
 
 ## Univariate Analysis
 
-```{r univariate_plot}
-#ggplot(data=edadata,x=variable1)+
-#  geom_bar()
+```{r "univariate_plot abv"}
+abvcolor<-aes(color=I('gray'),fill=I('tomato'))
+
+ggplot(data=beers,aes(x=abv))+
+  geom_histogram(binwidth=.002,abvcolor)
 ```
 
-Communicate what is important about this visualization after EVERY plot. Iterate.
+Many beers have ABV of .05. 5% is pretty standard beer alcohol content. It skews
+right - and I think this is because craft beers generally try to be unique and have
+something that makes it different than a domestic. Higher alcohol content is a 
+simple way to justify the craft value.
+
+```{r "univariate_plot ibu"}
+ibucolor<-aes(color=I('gray'),fill=I('limegreen'))
+
+ggplot(data=beers,aes(x=ibu))+
+  geom_histogram(ibucolor,binwidth = 5)
+```
+
+IBUs measure the bitterness. There was (maybe still is) a IPA craze in craft beer.
+It is a weird machismo thing to max out bitterness at the expense of balance. It
+is a common way to distinguish yourself - check the peak at 100. The otherwise
+bimodality is likely due to most beer types have IBUs under 25, but IPAs and other
+high-hopped beers seek for near 75.
+
+```{r "univariate_plot oz"}
+ozcolor<-aes(color=I('gray'),fill=I('cadetblue'))
+
+ggplot(data=beers,aes(x=ounces))+
+  geom_bar(ozcolor)+
+  scale_x_continuous(breaks=seq(0,32,4))
+```
+
+There are very common beer can sizes. 12 oz, 16 oz etc. There are some oddballs.
+
+```{r fig.height=8.5, "univariate_plot style"}
+
+ggplot(data=beers,aes(x=reorder(style,style,function(x)+length(x))))+
+  geom_bar()+
+  scale_y_log10()+
+  coord_flip()
+
+```
+
+Note the log scale.American style beers dominate the american craft brew scene. 
+It is noteworthy that lagers are technically more difficult and expensive to make,
+and a lot of craft breweries brew ales. 
+It is also noteworthy that there are around 10 beers without a style attached to them.
+
+```{r "join data"}
+joineddata<-dplyr::left_join(beers,breweries, by="brewery_id",suffix=c(".beer",".brewer"))
+summary(joineddata)
+```
+```{r message=FALSE, "univariate_plot brewery" }
+top20brew<-joineddata %>%
+  count(brewery_id) %>%
+  top_n(20)
+
+ggplot(data=subset(joineddata,brewery_id %in% top20brew$brewery_id),
+       aes(x=reorder(name.brewer,name.brewer, function(x)+length(x))))+
+  geom_bar()+
+  coord_flip()
+
+```
+
+Some breweries are going crazy pumping out different beers.
+
+
+
+I don't think looking at name will yield much, as the names are largely unique.
+
+
+Now lets look at the breweries table closer.
+
+```{r "univariate_plot state"}
+statecolor=aes(color=I('gray'),fill=I('mediumpurple'))
+ggplot(data=breweries, aes(x=reorder(state,state, function(x)+length(x))))+
+  geom_bar(statecolor)+
+  coord_flip()
+
+```
+
+Colorado is king! Colorado has a huge brewing history, as well as Michigan. 
+California is just huge. Oregon has a reputation for craft breweries,
+especially in Portland.
+
+Speaking of Portland, there are two important Portlands, so I want to check if 
+duplicate city names in different states is a factor. likely just need to create
+a new variable that combines the two.
+
+```{r create_citystate}
+breweries %>%
+  mutate(citystate=interaction(city,state,sep=", "))->breweries
+summary(breweries)
+```
+
+We can see that the number of "Portland" cities is not equal to the number of 
+"Portland, OR", meaning that Portland, ME has a few craft breweries.
+
+```{r message=FALSE, "univariate_plot citystate"}
+
+top10citystate<-breweries %>%
+  count(citystate) %>%
+  top_n(10)
+
+ggplot(data=subset(breweries,citystate %in% top10citystate$citystate),
+       aes(x=reorder(citystate,citystate, function(x)+length(x))))+
+  geom_bar(statecolor)+
+  coord_flip()
+
+
+```
+
+Both Portlands are in the top 10.
+
 
 ### Univariate Summary
 #### What is the structure of your dataset?
 
+standard relational dataset.
+
 #### What is/are the main feature(s) of interest in your dataset?
+Things like ABV and IBU are important, as well as location.
 
 #### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
 
+style will be interesting to correlate with ABV and IBU.
+
 #### Did you create any new variables from existing variables in the dataset?
+
+I created a citystate variable to account for same city names in different states
 
 #### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
 
+There is a slight tail on abv, which makes sense. Some beers are high alcohol content by design.
+There is a bimodality (or tri-modality) in IBUs, which is likely tied to unique
+beer styles that are know for bitterness, like IPAs.
 
 ## Bivariate Analysis
 
+I should've just done this in the beginning, but I'll work exclusively on the 
+joined data now.
+
+```{r "join data multi"}
+joineddata<-dplyr::left_join(beers,breweries, by="brewery_id",suffix=c(".beer",".brewer"))
+summary(joineddata)
+```
+
 Start with a ggpairs, as it plots all the bivariates at once.
-```{r  ggpairs_analysis}
-# library(GGally)
-# library(scales)
-# library(memisc)
-# 
-# ggpairs(edadata)
+```{r  message = FALSE, warning = FALSE, fig.width=8.5, fig.height=8.5, ggpairs_analysis}
+library(GGally)
+library(scales)
+library(memisc)
+
+ggpairs(dplyr::select(joineddata,
+                      -ends_with("id"),-starts_with("name."),-starts_with("city"),-style,-state),
+        lower = list(continuous = wrap("points", shape = I('.'))),
+        upper = list(combo = wrap("box", outlier.shape = I('.'))))
+        
 ```
 
+Unfortunately, most of the data has a huge number of factors and isn't ameniable to 
+pairplotting. But this is still useful.
 
-```{r bivariate_plot}
-# ggplot(data=edadata,x=variable1,y=variable2)+
-#   geom_point()
-# 
-# with(edadata,cor.test())
+
+```{r fig.height=8.5, "bivariate_plot abv state"}
+
+ggplot(data=joineddata,aes(x=reorder(state,-abv,median,na.rm = TRUE), y=abv))+
+  geom_jitter(alpha=.3,color='tomato')+
+  geom_boxplot(alpha=.5,fill='tomato')+
+  stat_summary(fun.y="mean",geom="point",color="green",shape=8,size=2)+
+  coord_flip()
 ```
-re-plot interesting pairs with better scaling etc. Explore correlations as well.
+
+Utah has a oddball beer law, saying beer must be 4% ABV max, whihc explains their 
+location! Many of the states have pretty wide spreads.
 
 ### Bivariate Summary
 #### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
