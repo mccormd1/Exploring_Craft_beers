@@ -386,6 +386,21 @@ ggpairs(dplyr::select(joineddata,
 Unfortunately, most of the data has a huge number of factors and isn't ameniable to 
 pairplotting. But this is still useful.
 
+```{r "bivariate_plot abv_vs_ibu"}
+
+ggplot(data=joineddata,aes(x=abv,y=ibu))+
+  geom_point(alpha=.5)+
+  geom_smooth(method="lm",formula=y~x)+
+  geom_density2d()
+
+with(joineddata,cor.test(abv,ibu))
+```
+
+There is a correlation between ABV and IBU. There is no technical reason for these
+to be correlated, as alcohol content and ibu are adjusted with different components
+of beer. However, it is a competitive advantage in niche craft markets to be
+exceptional. the hoppiest and most alcoholic beer is a branding edge that a 
+small craft brewery would strive to have.
 
 ```{r fig.height=8.5, "bivariate_plot abv state"}
 
@@ -399,6 +414,19 @@ ggplot(data=joineddata,aes(x=reorder(state,-abv,median,na.rm = TRUE), y=abv))+
 Utah has a oddball beer law, saying beer must be 4% ABV max, whihc explains their 
 location! Many of the states have pretty wide spreads.
 
+```{r fig.height=8.5, "bivariate_plot ibu state"}
+
+ggplot(data=joineddata,aes(x=reorder(state,-ibu,median,na.rm = TRUE), y=ibu))+
+  geom_jitter(alpha=.3,color='limegreen')+
+  geom_boxplot(alpha=.5,fill='limegreen')+
+  stat_summary(fun.y="mean",geom="point",color="red",shape=8,size=2)+
+  coord_flip()
+```
+
+There is an interesting narrative of having mostly midwestern states near the bottom
+of IBUs, and having southern and costal states near the top. it isnt a perfect narrative.
+
+This needs to be loaded up into tableau for some interesting maps.
 ### Bivariate Summary
 #### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
 
