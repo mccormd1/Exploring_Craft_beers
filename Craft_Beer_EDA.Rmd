@@ -427,6 +427,104 @@ There is an interesting narrative of having mostly midwestern states near the bo
 of IBUs, and having southern and costal states near the top. it isnt a perfect narrative.
 
 This needs to be loaded up into tableau for some interesting maps.
+
+Another important thing to do is to actually make a region variable! If we categorize
+the states into the four regions: Northeast, South, Midwest, and West; and into
+divisions: New England, Mid-atlantic, East North Central, West North Central,
+South atlantic, East South Central, West South Central, Mountain, and Pacific; we 
+may see cultural or regional differences with better clarity.
+
+```{r "create_states_variables"}
+state<- unique(joineddata$state)
+  
+divisions<-data.frame(state)
+```
+
+```{r "create_divisions_variables"}
+divisions<-divisions%>%
+  mutate(division=case_when(states %in% c("CT","ME","MA","NH","RI","VT") ~ "New England",
+                            states %in% c("NJ","NY","PA") ~ "Mid-Atlantic",
+                            states %in% c("WV","MD","DE","DC","VA","NC","SC","GA","FL") ~ "South Atlantic",
+                            states %in% c("KY","TN","MS","AL") ~ "East South Central",
+                            states %in% c("MI","OH","IN","IL","WI") ~ "East North Central",
+                            states %in% c("MN","IA","MO","ND","SD","NE","KS") ~ "West North Central",
+                            states %in% c("OK","AR","LA","TX") ~ "West South Central",
+                            states %in% c("CO","NM","WY","MT","ID","UT","AZ","NV") ~ "Mountain",
+                            states %in% c("WA","OR","CA","AK","HI") ~ "Pacific",
+                            TRUE ~ "OTHER"))
+```
+
+```{r "create_regions_variables"}
+divisions<-divisions%>%
+  mutate(region=case_when(division %in% c("New England","Mid-Atlantic") ~ "Northeast",
+                            division %in% c("South Atlantic","East South Central","West South Central") ~"South",
+                            division %in% c("East North Central","West North Central") ~"Midwest",
+                            division %in% c("Mountain","Pacific") ~ "West",
+                            TRUE ~ "OTHER"))
+```
+
+Now we can reupdate the joineddata by joining our new table!
+
+```{r "join_in_regions"}
+joineddata<-joineddata %>%
+  left_join(divisions,by="state")
+```
+
+Lets look at divisions and regions for ABV and IBU
+
+```{r fig.height=8.5, "bivariate_plot abv division"}
+
+ggplot(data=joineddata,aes(x=reorder(division,-abv,median,na.rm = TRUE), y=abv))+
+  geom_jitter(alpha=.3,color='tomato')+
+  geom_boxplot(alpha=.5,fill='tomato')+
+  stat_summary(fun.y="mean",geom="point",color="green",shape=8,size=2)+
+  coord_flip()
+```
+
+Every division seems to keep it pretty close to 6%, but it looks like the southwestern
+states like slightly lower abv than the great lakes. Maybe more ice beers in the 
+colder climate?
+
+```{r fig.height=8.5, "bivariate_plot ibu division"}
+
+ggplot(data=joineddata,aes(x=reorder(division,-ibu,median,na.rm = TRUE), y=ibu))+
+  geom_jitter(alpha=.3,color='limegreen')+
+  geom_boxplot(alpha=.5,fill='limegreen')+
+  stat_summary(fun.y="mean",geom="point",color="red",shape=8,size=2)+
+  coord_flip()
+```
+
+
+This is neat, the pacific coast states have a huge range in IBUs, while the heartland
+states maybe don't like the bitterness for the sake of bitterness.
+
+```{r fig.height=8.5, "bivariate_plot abv region"}
+
+ggplot(data=joineddata,aes(x=reorder(region,-abv,median,na.rm = TRUE), y=abv))+
+  geom_jitter(alpha=.3,color='tomato')+
+  geom_boxplot(alpha=.5,fill='tomato')+
+  stat_summary(fun.y="mean",geom="point",color="green",shape=8,size=2)+
+  coord_flip()
+```
+
+the differences get even smaller. The west coast seems to be more experimental
+than the other areas. Likely just a factor of number of breweries/beers.
+
+
+```{r fig.height=8.5, "bivariate_plot ibu region"}
+
+ggplot(data=joineddata,aes(x=reorder(region,-ibu,median,na.rm = TRUE), y=ibu))+
+  geom_jitter(alpha=.3,color='limegreen')+
+  geom_boxplot(alpha=.5,fill='limegreen')+
+  stat_summary(fun.y="mean",geom="point",color="red",shape=8,size=2)+
+  coord_flip()
+```
+
+Looks like the same trend holds, the midwest likes the more balanced bitterness
+(influenced by budweiser in STL maybe?) while the west coast likes to experiment
+more.
+
+
 ### Bivariate Summary
 #### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
 
@@ -438,8 +536,9 @@ This needs to be loaded up into tableau for some interesting maps.
 ## Multivariate Analysis
 
 ```{r corr_test}
-# ggplot(data=edadata,x=variable1,y=variable2,color=variable3)+
-#   geom_point()
+ggplot(data=joineddata,aes(x=abv,y=ibu,color=state))+
+  geom_point(alpha=.5)
+
 ```
 
 use color, size, etc to explore more complex interactions. look for color banding, transformations towards linearity, and other things to inform building a simple model.
