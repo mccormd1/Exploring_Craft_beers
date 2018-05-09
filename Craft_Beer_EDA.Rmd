@@ -200,7 +200,7 @@ breweries%>%
 
 ```{r clean_menomonie}
 breweries%>%
-  mutate(city = recode(city, "Menominie" = "Menomonie"))->breweries
+  mutate(city = dplyr::recode(city, "Menominie" = "Menomonie"))->breweries
 ## Test
 breweries%>%
   filter(brewery_id==456)
@@ -442,15 +442,15 @@ divisions<-data.frame(state)
 
 ```{r "create_divisions_variables"}
 divisions<-divisions%>%
-  mutate(division=case_when(states %in% c("CT","ME","MA","NH","RI","VT") ~ "New England",
-                            states %in% c("NJ","NY","PA") ~ "Mid-Atlantic",
-                            states %in% c("WV","MD","DE","DC","VA","NC","SC","GA","FL") ~ "South Atlantic",
-                            states %in% c("KY","TN","MS","AL") ~ "East South Central",
-                            states %in% c("MI","OH","IN","IL","WI") ~ "East North Central",
-                            states %in% c("MN","IA","MO","ND","SD","NE","KS") ~ "West North Central",
-                            states %in% c("OK","AR","LA","TX") ~ "West South Central",
-                            states %in% c("CO","NM","WY","MT","ID","UT","AZ","NV") ~ "Mountain",
-                            states %in% c("WA","OR","CA","AK","HI") ~ "Pacific",
+  mutate(division=case_when(state %in% c("CT","ME","MA","NH","RI","VT") ~ "New England",
+                            state %in% c("NJ","NY","PA") ~ "Mid-Atlantic",
+                            state %in% c("WV","MD","DE","DC","VA","NC","SC","GA","FL") ~ "South Atlantic",
+                            state %in% c("KY","TN","MS","AL") ~ "East South Central",
+                            state %in% c("MI","OH","IN","IL","WI") ~ "East North Central",
+                            state %in% c("MN","IA","MO","ND","SD","NE","KS") ~ "West North Central",
+                            state %in% c("OK","AR","LA","TX") ~ "West South Central",
+                            state %in% c("CO","NM","WY","MT","ID","UT","AZ","NV") ~ "Mountain",
+                            state %in% c("WA","OR","CA","AK","HI") ~ "Pacific",
                             TRUE ~ "OTHER"))
 ```
 
@@ -535,14 +535,22 @@ more.
 
 ## Multivariate Analysis
 
-```{r corr_test}
-ggplot(data=joineddata,aes(x=abv,y=ibu,color=state))+
-  geom_point(alpha=.5)
+```{r "multivariate_regions"}
+ggplot(data=joineddata,aes(x=abv,y=ibu,color=region))+
+  geom_point(alpha=.5)+
+  geom_smooth(method="lm",formula=y~x)
 
 ```
 
-use color, size, etc to explore more complex interactions. look for color banding, transformations towards linearity, and other things to inform building a simple model.
+Basically no distinction within these regions, except that the south and the 
+midwest have a few particularly high ABV choices.
 
+
+```{r "multivariate_divisions"}
+ggplot(data=joineddata,aes(x=abv,y=ibu,color=division))+
+  geom_point(alpha=.5)
+
+```
 
 
 ## Modeling Data
